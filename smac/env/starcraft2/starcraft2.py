@@ -780,6 +780,52 @@ class StarCraft2Env(MultiAgentEnv):
         ]
         return vals
 
+    def get_obs_sections(self, cumsum=True):
+        """Returns observation for agent_id.
+        NOTE: Agents should have access only to their local observations
+        during decentralised execution.
+        """
+        nf_al = 4 + self.unit_type_bits
+        nf_en = 4 + self.unit_type_bits
+
+        if self.obs_all_health:
+            nf_al += 1 + self.shield_bits_ally
+            nf_en += 1 + self.shield_bits_enemy
+
+        if self.obs_last_action:
+            nf_al += self.n_actions
+
+        nf_own = self.unit_type_bits
+        if self.obs_own_health:
+            nf_own += 1 + self.shield_bits_ally
+
+        move_feats_len = self.n_actions_move
+        if self.obs_pathing_grid:
+            move_feats_len += self.n_obs_pathing
+        if self.obs_terrain_height:
+            move_feats_len += self.n_obs_height
+
+        move_feats = np.zeros(move_feats_len, dtype=np.float32)
+        enemy_feats = np.zeros((self.n_enemies, nf_en), dtype=np.float32)
+        ally_feats = np.zeros((self.n_agents - 1, nf_al), dtype=np.float32)
+        own_feats = np.zeros(nf_own, dtype=np.float32)
+
+        agent_obs = [
+            0,
+            len(move_feats.flatten()),
+            len(enemy_feats.flatten()),
+            len(ally_feats.flatten()),
+            len(own_feats.flatten()),
+        ]
+
+        if self.obs_timestep_number:
+            agent_obs.append(1)
+
+        if cumsum:
+            return np.cumsum(agent_obs)
+
+        return agent_obs
+
     def get_obs_agent(self, agent_id):
         """Returns observation for agent_id.
         NOTE: Agents should have access only to their local observations
@@ -956,6 +1002,44 @@ class StarCraft2Env(MultiAgentEnv):
         """
         agents_obs = [self.get_obs_agent(i) for i in range(self.n_agents)]
         return agents_obs
+
+    def get_state_sections(self):
+        """Returns the global state.
+        NOTE: This functon should not be used during decentralised execution.
+        """
+        if self.obs_instead_of_state:
+            obs_sections = [0] + [self.get_obs_sections(cumsum=False) for i in range(self.n_agents)]
+            state_sections = np.sum(obs_sections, axis=0)
+
+            return np.cumsum(state_sections)
+
+        nf_al = 4 + self.shield_bits_ally + self.unit_type_bits
+        nf_en = 3 + self.shield_bits_enemy + self.unit_type_bits
+
+        ally_state = np.zeros((self.n_agents, nf_al))
+        enemy_state = np.zeros((self.n_enemies, nf_en))
+
+        state = np.append(ally_state.flatten(), enemy_state.flatten())
+        state = [
+            0,
+            len(ally_state.flatten()),
+            len(enemy_state.flatten()),
+        ]
+
+        if self.state_last_action:
+            state.append(len(self.last_action.flatten()))
+
+        if self.state_timestep_number:
+            state.append(1)
+
+        if self.debug:
+            logging.debug("STATE".center(60, "-"))
+            logging.debug("Ally state {}".format(ally_state))
+            logging.debug("Enemy state {}".format(enemy_state))
+            if self.state_last_action:
+                logging.debug("Last actions {}".format(self.last_action))
+
+        return np.cumsum(state)
 
     def get_state(self):
         """Returns the global state.
