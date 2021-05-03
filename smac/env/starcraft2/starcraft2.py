@@ -1611,3 +1611,13 @@ class StarCraft2Env(MultiAgentEnv):
             "restarts": self.force_restarts,
         }
         return stats
+    
+    def get_env_info(self):
+        info = super(StarCraft2Env, self).get_env_info()
+
+        info["move_feats_dim"] = self.get_obs_move_feats_size()
+        info["enemy_feats_dim"] = self.get_obs_enemy_feats_size()[-1]
+        info["ally_feats_dim"] = self.get_obs_ally_feats_size()[-1]
+        info["own_feats_dim"] = self.get_obs_own_feats_size()
+
+        return info
