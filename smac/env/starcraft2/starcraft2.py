@@ -94,6 +94,8 @@ class StarCraft2Env(MultiAgentEnv):
         heuristic_ai=False,
         heuristic_rest=False,
         debug=False,
+        pad_agents=0,
+        pad_enemies=0,
     ):
         """
         Create a StarCraftC2Env environment.
@@ -196,6 +198,9 @@ class StarCraft2Env(MultiAgentEnv):
         map_params = get_map_params(self.map_name)
         self.n_agents = map_params["n_agents"]
         self.n_enemies = map_params["n_enemies"]
+        self.fake_agents = pad_agents or self.n_agents
+        self.fake_enemies = pad_enemies or self.n_enemies
+
         self.episode_limit = map_params["limit"]
         self._move_amount = move_amount
         self._step_mul = step_mul
@@ -240,7 +245,7 @@ class StarCraft2Env(MultiAgentEnv):
         # Actions
         self.n_actions_no_attack = 6
         self.n_actions_move = 4
-        self.n_actions = self.n_actions_no_attack + self.n_enemies
+        self.n_actions = self.n_actions_no_attack + self.fake_enemies
 
         # Map info
         self._agent_race = map_params["a_race"]
@@ -251,7 +256,7 @@ class StarCraft2Env(MultiAgentEnv):
         self.map_type = map_params["map_type"]
 
         self.max_reward = (
-            self.n_enemies * self.reward_death_value + self.reward_win
+            self.fake_enemies * self.reward_death_value + self.reward_win
         )
 
         self.agents = {}
@@ -269,7 +274,7 @@ class StarCraft2Env(MultiAgentEnv):
         self.death_tracker_enemy = np.zeros(self.n_enemies)
         self.previous_ally_units = None
         self.previous_enemy_units = None
-        self.last_action = np.zeros((self.n_agents, self.n_actions))
+        self.last_action = np.zeros((self.fake_agents, self.n_actions))
         self._min_unit_type = 0
         self.marine_id = self.marauder_id = self.medivac_id = 0
         self.hydralisk_id = self.zergling_id = self.baneling_id = 0
@@ -356,7 +361,7 @@ class StarCraft2Env(MultiAgentEnv):
         self.win_counted = False
         self.defeat_counted = False
 
-        self.last_action = np.zeros((self.n_agents, self.n_actions))
+        self.last_action = np.zeros((self.fake_agents, self.n_actions))
 
         if self.heuristic_ai:
             self.heuristic_targets = [None] * self.n_agents
@@ -394,7 +399,8 @@ class StarCraft2Env(MultiAgentEnv):
         """A single environment step. Returns reward, terminated, info."""
         actions_int = [int(a) for a in actions]
 
-        self.last_action = np.eye(self.n_actions)[np.array(actions_int)]
+        self.last_action = np.zeros((self.fake_agents, self.n_actions))
+        self.last_action[:len(actions_int)] = np.eye(self.n_actions)[actions_int]
 
         # Collect individual actions
         sc_actions = []
@@ -1085,8 +1091,8 @@ class StarCraft2Env(MultiAgentEnv):
         nf_al = 4 + self.shield_bits_ally + self.unit_type_bits
         nf_en = 3 + self.shield_bits_enemy + self.unit_type_bits
 
-        ally_state = np.zeros((self.n_agents, nf_al))
-        enemy_state = np.zeros((self.n_enemies, nf_en))
+        ally_state = np.zeros((self.fake_agents, nf_al))
+        enemy_state = np.zeros((self.fake_enemies, nf_en))
 
         state = np.append(ally_state.flatten(), enemy_state.flatten())
         state = [
@@ -1123,8 +1129,8 @@ class StarCraft2Env(MultiAgentEnv):
         nf_al = 4 + self.shield_bits_ally + self.unit_type_bits
         nf_en = 3 + self.shield_bits_enemy + self.unit_type_bits
 
-        ally_state = np.zeros((self.n_agents, nf_al))
-        enemy_state = np.zeros((self.n_enemies, nf_en))
+        ally_state = np.zeros((self.fake_agents, nf_al))
+        enemy_state = np.zeros((self.fake_enemies, nf_en))
 
         center_x = self.map_x / 2
         center_y = self.map_y / 2
@@ -1220,7 +1226,7 @@ class StarCraft2Env(MultiAgentEnv):
         if self.obs_all_health:
             nf_en += 1 + self.shield_bits_enemy
 
-        return self.n_enemies, nf_en
+        return self.fake_enemies, nf_en
 
     def get_obs_ally_feats_size(self):
         """Returns the dimensions of the matrix containing ally features.
@@ -1234,7 +1240,7 @@ class StarCraft2Env(MultiAgentEnv):
         if self.obs_last_action:
             nf_al += self.n_actions
 
-        return self.n_agents - 1, nf_al
+        return self.fake_agents - 1, nf_al
 
     def get_obs_own_feats_size(self):
         """Returns the size of the vector containing the agents' own features.
@@ -1278,13 +1284,13 @@ class StarCraft2Env(MultiAgentEnv):
         nf_al = 4 + self.shield_bits_ally + self.unit_type_bits
         nf_en = 3 + self.shield_bits_enemy + self.unit_type_bits
 
-        enemy_state = self.n_enemies * nf_en
-        ally_state = self.n_agents * nf_al
+        enemy_state = self.fake_enemies * nf_en
+        ally_state = self.fake_agents * nf_al
 
         size = enemy_state + ally_state
 
         if self.state_last_action:
-            size += self.n_agents * self.n_actions
+            size += self.fake_agents * self.n_actions
         if self.state_timestep_number:
             size += 1
 
