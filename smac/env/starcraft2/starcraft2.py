@@ -1121,9 +1121,11 @@ class StarCraft2Env(MultiAgentEnv):
         NOTE: This functon should not be used during decentralised execution.
         """
         if self.obs_instead_of_state:
-            obs_concat = np.concatenate(self.get_obs(), axis=0).astype(
+            obs_concat = np.zeros(self.get_state_size())
+            obs_all = np.concatenate(self.get_obs(), axis=0).astype(
                 np.float32
             )
+            obs_concat[:len(obs_all)] = obs_all
             return obs_concat
 
         nf_al = 4 + self.shield_bits_ally + self.unit_type_bits
@@ -1279,7 +1281,7 @@ class StarCraft2Env(MultiAgentEnv):
     def get_state_size(self):
         """Returns the size of the global state."""
         if self.obs_instead_of_state:
-            return self.get_obs_size() * self.n_agents
+            return self.get_obs_size() * self.fake_agents
 
         nf_al = 4 + self.shield_bits_ally + self.unit_type_bits
         nf_en = 3 + self.shield_bits_enemy + self.unit_type_bits
